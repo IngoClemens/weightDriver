@@ -1,0 +1,8 @@
++ MAYAVERSION:2016.5 weightDriver any /Users/USERNAME/Library/Preferences/Autodesk/maya/modules/weightDriver
+plug-ins: plug-ins/macOS/2016.5
+
++ MAYAVERSION:2017 weightDriver any /Users/USERNAME/Library/Preferences/Autodesk/maya/modules/weightDriver
+plug-ins: plug-ins/macOS/2017
+
++ MAYAVERSION:2018 weightDriver any /Users/USERNAME/Library/Preferences/Autodesk/maya/modules/weightDriver
+plug-ins: plug-ins/macOS/2018
