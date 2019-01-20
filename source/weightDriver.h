@@ -121,10 +121,12 @@ public:
     void showVector(MVector vector, MString name);
     void showMatrix(MMatrix mat, MString name);
 
+#if MAYA_API_VERSION < 201900
     virtual void draw(M3dView &view,
                       const MDagPath &path,
                       M3dView::DisplayStyle style,
                       M3dView::DisplayStatus status);
+#endif
 
     static MTypeId id;
 

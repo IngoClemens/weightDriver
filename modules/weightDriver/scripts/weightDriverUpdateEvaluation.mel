@@ -1,10 +1,16 @@
-// ---------------------------------------------------------------------
-// weightDriverUpdateEvaluation.mel
 //
-// Refresh the RBF data set and pre-calculate the weights.
+// Procedure Name:
+//      weightDriverUpdateEvaluation
 //
-// ---------------------------------------------------------------------
-
+// Description:
+//      Refresh the RBF data set and pre-calculate the weights.
+//
+// Input Arguments:
+//      nodeName        The name of the weight driver node.
+//
+// Return Value:
+//      None
+//
 global proc weightDriverUpdateEvaluation( string $nodeName )
 {
     setAttr ($nodeName + ".evaluate") 1;

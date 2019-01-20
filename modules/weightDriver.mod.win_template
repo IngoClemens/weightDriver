@@ -6,3 +6,6 @@ plug-ins: plug-ins/win64/2017
 
 + MAYAVERSION:2018 weightDriver any C:\Users\USERNAME\Documents\maya\modules\weightDriver
 plug-ins: plug-ins/win64/2018
+
++ MAYAVERSION:2019 weightDriver any C:\Users\USERNAME\Documents\maya\modules\weightDriver
+plug-ins: plug-ins/win64/2019

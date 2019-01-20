@@ -1485,9 +1485,9 @@ MStatus weightDriver::getPoseVectors(MDataBlock &data,
                 // Copy the pose vectors and twist values for the VP 2.0
                 // display.
                 MArrayDataHandle pvHandle = data.outputArrayValue(poseDrawVector);
-                MArrayDataBuilder pvBuilder(poseDrawVector, poseCount + 1);
+                MArrayDataBuilder pvBuilder(&data, poseDrawVector, poseCount + 1);
                 MArrayDataHandle ptHandle = data.outputArrayValue(poseDrawTwist);
-                MArrayDataBuilder ptBuilder(poseDrawTwist, poseCount + 1);
+                MArrayDataBuilder ptBuilder(&data, poseDrawTwist, poseCount + 1);
                 for (i = 0; i < poseCount; i ++)
                 {
                     MDataHandle pvIdHandle = pvBuilder.addElement((unsigned)poseMatrixIds[i]);
@@ -2071,7 +2071,7 @@ void weightDriver::setOutputValues(MDoubleArray weightsArray, MDataBlock data, b
     }
 
     MArrayDataHandle outputHandle = data.outputArrayValue(output);
-    MArrayDataBuilder outputBuilder(output, count);
+    MArrayDataBuilder outputBuilder(&data, output, count);
     for (i = 0; i < count; i ++)
     {
         MDataHandle outputIdHandle = outputBuilder.addElement((unsigned)ids[i]);
@@ -2229,6 +2229,7 @@ void weightDriver::showMatrix(MMatrix mat, MString name)
 // This applies to the vector angle reader and RBF solver.
 //
 // ---------------------------------------------------------------------
+#if MAYA_API_VERSION < 201900
 
 void weightDriver::draw(M3dView &view,
                         const MDagPath &path,
@@ -2703,6 +2704,7 @@ void weightDriver::draw(M3dView &view,
     glPopAttrib();
     view.endGL();
 }
+#endif
 
 
 // ---------------------------------------------------------------------
