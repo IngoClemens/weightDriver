@@ -3,7 +3,7 @@
 //  BRMatrix.h
 //
 //  Created by ingo on 12/7/16.
-//  Copyright (c) 2016 Ingo Clemens. All rights reserved.
+//  Copyright (c) 2021 Ingo Clemens. All rights reserved.
 //
 // ---------------------------------------------------------------------
 
@@ -53,7 +53,7 @@ private:
 // ---------------------------------------------------------------------
 // MIT License
 //
-// Copyright (c) 2018 Ingo Clemens, brave rabbit
+// Copyright (c) 2021 Ingo Clemens, brave rabbit
 // weightDriver is under the terms of the MIT License
 //
 // Permission is hereby granted, free of charge, to any person obtaining
