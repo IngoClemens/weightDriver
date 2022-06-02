@@ -1,3 +1,7 @@
+**3.6.1 (2022-06-01)**
+* Added support for Maya 2023.
+* Fixed the loss of stored data in generic mode after the Active check box has been toggled to temporarily bypass the solver.
+
 **3.6.0 (2021-03-29) - Update**
 * Added support for Maya 2022.
 

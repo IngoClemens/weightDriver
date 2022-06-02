@@ -243,7 +243,11 @@ private:
 class weightDriverData : public MUserData
 {
 public:
+#if MAYA_API_VERSION > 20200300
     weightDriverData() : MUserData() {}
+#else
+    weightDriverData() : MUserData(false) {}
+#endif
     virtual ~weightDriverData() {}
 
     bool activeVal;

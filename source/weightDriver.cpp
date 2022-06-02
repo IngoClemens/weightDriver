@@ -2048,6 +2048,10 @@ void weightDriver::getPoseWeights(MDoubleArray &out,
 //
 void weightDriver::setOutputValues(MDoubleArray weightsArray, MDataBlock data, bool inactive)
 {
+    MStatus status = MStatus::kSuccess;
+    
+    MObject thisNode = this->thisMObject();
+    
     unsigned int i;
 
     // In generic mode pose and output indices are not related.
@@ -2059,10 +2063,21 @@ void weightDriver::setOutputValues(MDoubleArray weightsArray, MDataBlock data, b
     MIntArray ids;
     if (genericMode)
     {
-        count = weightsArray.length();
-        ids.setLength(count);
-        for (i = 0; i < count; i ++)
-            ids.set((int)i, i);
+        if (!inactive)
+        {
+            count = weightsArray.length();
+            ids.setLength(count);
+            for (i = 0; i < count; i ++)
+                ids.set((int)i, i);
+        }
+        else
+        {
+            MPlug outputPlug(thisNode, weightDriver::output);
+            outputPlug.getExistingArrayAttributeIndices(ids, &status);
+            if (status != MStatus::kSuccess)
+                return;
+            count = ids.length();
+        }
     }
     else
     {
@@ -2086,8 +2101,8 @@ void weightDriver::setOutputValues(MDoubleArray weightsArray, MDataBlock data, b
             outputIdHandle.setDouble(0.0);
 
         outputHandle.set(outputBuilder);
-        outputHandle.setAllClean();
     }
+    outputHandle.setAllClean();
 }
 
 
