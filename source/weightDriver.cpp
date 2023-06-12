@@ -3277,10 +3277,12 @@ void weightDriverOverride::addUIDrawables(const MDagPath &objPath,
     }
 }
 
-
+#if MAYA_API_VERSION < 202400
 void weightDriverOverride::draw(const MHWRender::MDrawContext &context, const MUserData *data)
 {
 }
+#endif
+
 #endif
 
 // ---------------------------------------------------------------------

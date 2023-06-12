@@ -9,7 +9,7 @@
 
 #include <string>
 
-static const std::string kVERSION = "3.6.1";
+static const std::string kVERSION = "3.6.2";
 
 #include <maya/MFnPlugin.h>
 

@@ -44,7 +44,9 @@
 
 // VP2.0
 #if MAYA_API_VERSION >= 201400
+#if MAYA_API_VERSION < 202400
 #include <maya/MDrawContext.h>
+#endif
 #include <maya/MDrawRegistry.h>
 #include <maya/MEventMessage.h>
 #include "maya/MFnCamera.h"
@@ -312,7 +314,9 @@ public:
                                 const MHWRender::MFrameContext &frameContext,
                                 const MUserData *data);
 
+#if MAYA_API_VERSION < 202400
     static void draw(const MHWRender::MDrawContext &context, const MUserData *data);
+#endif
 
 public:
     MVector viewVector;
