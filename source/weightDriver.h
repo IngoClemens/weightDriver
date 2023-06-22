@@ -3,7 +3,7 @@
 //  weightDriver.h
 //
 //  Created by ingo on 9/27/13.
-//  Copyright (c) 2021 Ingo Clemens. All rights reserved.
+//  Copyright (c) 2013-2023 Ingo Clemens. All rights reserved.
 //
 // ---------------------------------------------------------------------
 
@@ -42,8 +42,6 @@
 #include <maya/MTransformationMatrix.h>
 #include <maya/MVectorArray.h>
 
-// VP2.0
-#if MAYA_API_VERSION >= 201400
 #if MAYA_API_VERSION < 202400
 #include <maya/MDrawContext.h>
 #endif
@@ -53,7 +51,6 @@
 #include "maya/MHWGeometryUtilities.h"
 #include <maya/MPxDrawOverride.h>
 #include <maya/MUserData.h>
-#endif
 
 #include "BRMatrix.h"
 #include <vector>
@@ -98,15 +95,19 @@ public:
                                 BRMatrix &poseValues,
                                 MIntArray &poseModes);
 
+    virtual double getRadiusValue();
+    
     static double getTwistAngle(MQuaternion q, unsigned int axis);
-    static BRMatrix getDistances(BRMatrix poseMat, double &meanDist, int distType);
+    static BRMatrix getDistances(BRMatrix poseMat, int distType);
     static double getPoseDelta(std::vector<double> vec1, std::vector<double> vec2, int distType);
     static double getRadius(std::vector<double> vec1, std::vector<double> vec2);
     static double getAngle(std::vector<double> vec1, std::vector<double> vec2);
     static void getActivations(BRMatrix &mat, double width, short kernelType);
     static double interpolateRbf(double value, double width, short kernelType);
+    static std::vector<double> normalizeVector(std::vector<double> vec, std::vector<double> factors);
     static void getPoseWeights(MDoubleArray &out,
                                BRMatrix poses,
+                               std::vector<double> norms,
                                std::vector<double> driver,
                                MIntArray poseModes,
                                BRMatrix weightMat,
@@ -114,28 +115,19 @@ public:
                                int distType,
                                short kernelType);
 
-    virtual double rbfWeightBias(double value, double biasValue);
     virtual double interpolateWeight(double value, int type);
     virtual double blendCurveWeight(double value);
     virtual void setOutputValues(MDoubleArray weightsArray, MDataBlock data, bool inactive);
 
     void showArray(MDoubleArray array, MString name);
+    static void showArray(std::vector<double> array, MString name);
     void showVector(MVector vector, MString name);
     void showMatrix(MMatrix mat, MString name);
 
-#if MAYA_API_VERSION < 201900
-    virtual void draw(M3dView &view,
-                      const MDagPath &path,
-                      M3dView::DisplayStyle style,
-                      M3dView::DisplayStatus status);
-#endif
-
     static MTypeId id;
 
-#if MAYA_API_VERSION >= 201400
     static MString drawDbClassification;
     static MString drawRegistrantId;
-#endif
 
 public:
     // vector angle attributes (sorted)
@@ -155,7 +147,6 @@ public:
     static MObject grow;
     static MObject interpolate;
     static MObject invert;
-    static MObject outWeight;
     static MObject readerMatrix;
     static MObject size;
     static MObject translateMax;
@@ -167,7 +158,7 @@ public:
 
     // rbf attributes (sorted)
     static MObject allowNegative;
-    static MObject bias;
+    static MObject radius;
     static MObject colorDriver;
     static MObject colorDriverR;
     static MObject colorDriverG;
@@ -187,12 +178,13 @@ public:
     static MObject indexDist;
     static MObject input;
     static MObject kernel;
+    static MObject mean;
     static MObject opposite;
     static MObject output;
     static MObject pose;
     static MObject poseAttributes;
-    static MObject poseDrawTwist; // VP2.0 twist display
-    static MObject poseDrawVector; // VP2.0 pose display
+    static MObject poseDrawTwist;
+    static MObject poseDrawVector;
     static MObject poseInput;
     static MObject poseLength;
     static MObject poseMatrix;
@@ -206,8 +198,10 @@ public:
     static MObject restInput;
     static MObject scale;
     static MObject type;
+    static MObject radiusType;
     static MObject twistAxis;
     static MObject useInterpolation;
+    static MObject variance;
 
     MRampAttribute curveAttr;
 
@@ -224,15 +218,21 @@ private:
     bool genericMode;
     unsigned globalPoseCount;
     MIntArray poseMatrixIds;
-    MVectorArray poseVectorArray; // legacy viewport pose display
-    MDoubleArray poseTwistArray; // legacy viewport twist display
     short typeVal;
+    short kernelVal;
+    double radiusVal;
+    short radiusTypeVal;
+    double meanVal;
+    double varianceVal;
 
     BRMatrix matPoses;
     BRMatrix matValues;
+    BRMatrix matDebug;
     double meanDist;
     MIntArray poseModes;
     BRMatrix wMat;
+    
+    std::vector<double> inputNorms;
 };
 
 // ---------------------------------------------------------------------
@@ -241,7 +241,6 @@ private:
 //
 // ---------------------------------------------------------------------
 
-#if MAYA_API_VERSION >= 201400
 class weightDriverData : public MUserData
 {
 public:
@@ -288,13 +287,8 @@ public:
         return new weightDriverOverride(obj);
     }
     virtual ~weightDriverOverride();
-
-// -----------------------------------------------
-// VP2.0 API 2016.5
-// -----------------------------------------------
-#if MAYA_API_VERSION >= 201650
+    
     virtual MHWRender::DrawAPI supportedDrawAPIs() const;
-#endif
 
     virtual bool isBounded(const MDagPath &objPath,
                            const MDagPath &cameraPath) const { return true; };
@@ -323,25 +317,18 @@ public:
 
 private:
     weightDriverOverride(const MObject& obj);
-
-// -----------------------------------------------
-// VP2.0 API 2016.5
-// -----------------------------------------------
-#if MAYA_API_VERSION >= 201650
     static void OnModelEditorChanged(void *clientData);
 
     weightDriver*  fWeightDriver;
     MCallbackId fModelEditorChangedCbId;
-#endif
 };
-#endif // MAYA_API_VERSION >= 201400
 
 #endif
 
 // ---------------------------------------------------------------------
 // MIT License
 //
-// Copyright (c) 2021 Ingo Clemens, brave rabbit
+// Copyright (c) 2021-2023 Ingo Clemens, brave rabbit
 // weightDriver is under the terms of the MIT License
 //
 // Permission is hereby granted, free of charge, to any person obtaining

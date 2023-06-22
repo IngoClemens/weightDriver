@@ -1103,7 +1103,7 @@ def disableButtons():
     cmds.button(INSTALL_BUTTON,
                 edit=True,
                 label="Close",
-                command="cmds.deleteUI('{}')".format(INSTALL_WIN))
+                command="maya.cmds.deleteUI('{}')".format(INSTALL_WIN))
     cmds.button(UNINSTALL_BUTTON,
                 edit=True,
                 enable=False)

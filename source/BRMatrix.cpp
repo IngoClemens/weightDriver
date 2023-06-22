@@ -3,7 +3,7 @@
 //  BRMatrix.cpp
 //
 //  Created by ingo on 12/7/16.
-//  Copyright (c) 2021 Ingo Clemens. All rights reserved.
+//  Copyright (c) 2016-2023 Ingo Clemens. All rights reserved.
 //
 // ---------------------------------------------------------------------
 
@@ -91,6 +91,88 @@ double* BRMatrix::getColumnVector(double *vec, int col)
         vec[i] = this->mat[i][(unsigned)col];
 
     return vec;
+}
+
+
+// ---------------------------------------------------------------------
+// normalization
+// ---------------------------------------------------------------------
+
+std::vector<double> BRMatrix::normsColumn()
+{
+    std::vector<double> vec;
+    vec.resize(cols);
+
+    for (unsigned i = 0; i < cols; i ++)
+        vec[i] = this->norm(this->getColumnVector(i));
+
+    return vec;
+}
+
+
+double BRMatrix::norm(std::vector<double> vec)
+{
+    double value = 0.0;
+
+    for (unsigned i = 0; i < vec.size(); i ++)
+        value += pow(vec[i], 2);
+
+    return sqrt(value);
+}
+
+
+void BRMatrix::normalizeColumns(std::vector<double> factor)
+{
+    unsigned i, j;
+    
+    if (cols == factor.size())
+    {
+        for (j = 0; j < cols; j ++)
+        {
+            for (i = 0; i < rows; i ++)
+            {
+                if (factor[j] > 0)
+                    mat[i][j] /= factor[j];
+            }
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------
+// deviation
+// ---------------------------------------------------------------------
+
+double BRMatrix::mean()
+{
+    unsigned i, j;
+    
+    double value = 0.0;
+    
+    for (i = 0; i < rows; i ++)
+    {
+        for (j = 0; j < cols; j ++)
+            value += mat[i][j];
+    }
+    
+    return value / (rows * cols);
+}
+
+
+double BRMatrix::variance()
+{
+    unsigned i, j;
+    
+    double m = this->mean();
+    double value = 0.0;
+    
+    for (i = 0; i < rows; i ++)
+    {
+        for (j = 0; j < cols; j ++)
+            value += pow(mat[i][j] - m, 2);
+    }
+    
+    return value / (rows * cols);
 }
 
 
@@ -193,7 +275,7 @@ const double& BRMatrix::operator()(const unsigned &row, const unsigned &col) con
 // gaussian elimination
 // ---------------------------------------------------------------------
 
-bool BRMatrix::solve(std::vector<double> y, double w[])
+bool BRMatrix::solve(std::vector<double> y, double w[], int &singularIndex)
 {
     // Make sure that the matrix is square.
     if (rows != cols)
@@ -207,6 +289,8 @@ bool BRMatrix::solve(std::vector<double> y, double w[])
     bool swap = false;
     double mult = 0.0;
     double sum = 0.0;
+    
+    singularIndex = -1;
 
     for (i = 0; i < size; i++)
     {
@@ -244,7 +328,10 @@ bool BRMatrix::solve(std::vector<double> y, double w[])
 
         // Check if the matrix is singular.
         if (fabs(this->mat[i][i]) < 0.0001)
+        {
+            singularIndex = int(i);
             return false;
+        }
 
         // Perform the forward elimination.
         for (j = i + 1; j < size; j++)
@@ -282,6 +369,7 @@ void BRMatrix::show(MString node, MString dataName)
 
     for (i = 0; i < rows; i++)
     {
+        s += MString("Index ") + i + ":";
         for (j = 0; j < cols; j++)
             s += MString(" ") + mat[i][j];
 
@@ -308,7 +396,7 @@ void BRMatrix::showVector(std::vector<double> v, MString name)
 // ---------------------------------------------------------------------
 // MIT License
 //
-// Copyright (c) 2021 Ingo Clemens, brave rabbit
+// Copyright (c) 2021-2023 Ingo Clemens, brave rabbit
 // weightDriver is under the terms of the MIT License
 //
 // Permission is hereby granted, free of charge, to any person obtaining

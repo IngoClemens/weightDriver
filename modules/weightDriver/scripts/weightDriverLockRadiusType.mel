@@ -1,9 +1,9 @@
 //
 // Procedure Name:
-//      weightDriverUpdateEvaluation
+//      weightDriverLockRadiusType
 //
 // Description:
-//      Refresh the RBF data set and pre-calculate the weights.
+//      Lock the radius type option depending on the kernel attribute.
 //
 // Input Arguments:
 //      nodeName        The name of the weight driver node.
@@ -11,12 +11,15 @@
 // Return Value:
 //      None
 //
-global proc weightDriverUpdateEvaluation( string $nodeName )
+global proc weightDriverLockRadiusType( string $nodeName )
 {
-    setAttr ($nodeName + ".evaluate") 1;
-    refresh;
-    setAttr ($nodeName + ".evaluate") 0;
-    refresh;
+    int $lock = 0;
+    if (`getAttr ($nodeName + ".kernel")` == 0)
+        $lock = 1;
+    setAttr -lock $lock ($nodeName + ".radiusType");
+
+    // Update the solver data.
+    weightDriverUpdateEvaluation($nodeName);
 }
 
 // ---------------------------------------------------------------------

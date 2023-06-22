@@ -1,9 +1,10 @@
 //
 // Procedure Name:
-//      weightDriverUpdateEvaluation
+//      weightDriverGetRadius
 //
 // Description:
-//      Refresh the RBF data set and pre-calculate the weights.
+//      Set the RBF radius attribute based on the current radius type
+//      selection.
 //
 // Input Arguments:
 //      nodeName        The name of the weight driver node.
@@ -11,12 +12,25 @@
 // Return Value:
 //      None
 //
-global proc weightDriverUpdateEvaluation( string $nodeName )
+global proc weightDriverGetRadius( string $nodeName )
 {
-    setAttr ($nodeName + ".evaluate") 1;
-    refresh;
-    setAttr ($nodeName + ".evaluate") 0;
-    refresh;
+    // Unlock the attribute.
+    setAttr -lock 0 ($nodeName + ".radius");
+
+    int $type = `getAttr ($nodeName + ".radiusType")`;
+    if ($type == 0)
+        setAttr -lock 1 ($nodeName + ".radius") `getAttr ($nodeName + ".meanDistance")`;
+    else if ($type == 1)
+        setAttr -lock 1 ($nodeName + ".radius") `getAttr ($nodeName + ".variance")`;
+    else if ($type == 2)
+    {
+        float $value = `getAttr ($nodeName + ".variance")`;
+        $value = sqrt($value);
+        setAttr -lock 1 ($nodeName + ".radius") $value;
+    }
+
+    // Update the solver data.
+    weightDriverUpdateEvaluation($nodeName);
 }
 
 // ---------------------------------------------------------------------

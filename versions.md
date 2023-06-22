@@ -1,3 +1,10 @@
+**4.0.0 (2023-06-22)**
+* RBF algorithm update. This breaks compatibility with previous versions of the weightDriver node.
+* Minimum supported Maya version is 2020.
+* Added new kernel types and radius options.
+* Removed the bias value.
+* Improved error message in case of a calculation error.
+
 **3.6.2 (2023-06-12)**
 * Added support for Maya 2024.
 * Removed an obsolete part for Maya 2024.

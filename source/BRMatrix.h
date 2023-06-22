@@ -3,7 +3,7 @@
 //  BRMatrix.h
 //
 //  Created by ingo on 12/7/16.
-//  Copyright (c) 2021 Ingo Clemens. All rights reserved.
+//  Copyright (c) 2016-2023 Ingo Clemens. All rights reserved.
 //
 // ---------------------------------------------------------------------
 
@@ -28,6 +28,13 @@ public:
     std::vector<double> getRowVector(unsigned row);
     std::vector<double> getColumnVector(unsigned col);
     double* getColumnVector(double *vec, int col);
+    
+    std::vector<double> normsColumn();
+    double norm(std::vector<double> vec);
+    void normalizeColumns(std::vector<double> factor);
+    
+    double mean();
+    double variance();
 
     BRMatrix& operator=(const BRMatrix &inMat);
     BRMatrix operator*(const BRMatrix &inMat);
@@ -37,7 +44,7 @@ public:
     double& operator()(const unsigned &row, const unsigned &col);
     const double& operator()(const unsigned &row, const unsigned &col) const;
 
-    bool solve(std::vector<double> y, double w[]);
+    bool solve(std::vector<double> y, double w[], int &singularIndex);
 
     void show(MString node, MString dataName);
     void showVector(std::vector<double> v, MString name);
@@ -53,7 +60,7 @@ private:
 // ---------------------------------------------------------------------
 // MIT License
 //
-// Copyright (c) 2021 Ingo Clemens, brave rabbit
+// Copyright (c) 2021-2023 Ingo Clemens, brave rabbit
 // weightDriver is under the terms of the MIT License
 //
 // Permission is hereby granted, free of charge, to any person obtaining

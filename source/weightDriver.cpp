@@ -3,7 +3,7 @@
 //  weightDriver.cpp
 //
 //  Created by ingo on 9/27/13.
-//  Copyright (c) 2021 Ingo Clemens. All rights reserved.
+//  Copyright (c) 2013-2023 Ingo Clemens. All rights reserved.
 //
 // ---------------------------------------------------------------------
 
@@ -55,8 +55,6 @@ MObject weightDriver::drawCenter;
 MObject weightDriver::drawCone;
 MObject weightDriver::drawWeight;
 MObject weightDriver::size;
-// output
-MObject weightDriver::outWeight;
 
 
 // -----------------------------------------------
@@ -81,7 +79,8 @@ MObject weightDriver::poseValues;
 MObject weightDriver::restInput;
 // controls
 MObject weightDriver::allowNegative;
-MObject weightDriver::bias;
+MObject weightDriver::radiusType;
+MObject weightDriver::radius;
 MObject weightDriver::distanceType;
 MObject weightDriver::evaluate;
 MObject weightDriver::kernel;
@@ -90,6 +89,8 @@ MObject weightDriver::rbfMode;
 MObject weightDriver::twistAxis;
 MObject weightDriver::type;
 MObject weightDriver::useInterpolation;
+MObject weightDriver::mean;
+MObject weightDriver::variance;
 // display
 MObject weightDriver::colorDriver;
 MObject weightDriver::colorDriverR;
@@ -164,9 +165,13 @@ MStatus weightDriver::initialize()
     eAttr.addField("Curve", 5);
     eAttr.setKeyable(true);
 
-    kernel = eAttr.create("kernel", "kn", 0);
-    eAttr.addField("Gaussian", 0);
-    eAttr.addField("Linear", 1);
+    kernel = eAttr.create("kernel", "kn", 1);
+    eAttr.addField("Linear", 0);
+    eAttr.addField("Gaussian 1", 1);
+    eAttr.addField("Gaussian 2", 2);
+    eAttr.addField("Thin Plate", 3);
+    eAttr.addField("Multi-Quadratic Biharmonic", 4);
+    eAttr.addField("Inverse Multi-Quadratic Biharmonic", 5);
     // Set the attribute to be hidden and non-keyable because the
     // evaluation needs to get updated when switching the kernel type.
     // The automatic update is tied to the control in the attribute
@@ -205,6 +210,13 @@ MStatus weightDriver::initialize()
     eAttr.addField("Vector Angle", 0);
     eAttr.addField("RBF", 1);
     eAttr.setKeyable(true);
+    
+    radiusType = eAttr.create("radiusType", "radt", 0);
+    eAttr.addField("Mean Distance", 0);
+    eAttr.addField("Variance", 1);
+    eAttr.addField("Standard Deviation", 2);
+    eAttr.addField("Custom", 3);
+    eAttr.setKeyable(true);
 
     //
     // MFnNumericAttribute
@@ -226,10 +238,10 @@ MStatus weightDriver::initialize()
     nAttr.setMax(180.0);
     nAttr.setDefault(45.0);
 
-    bias = nAttr.create("bias", "bias", MFnNumericData::kDouble);
+    radius = nAttr.create("radius", "rad", MFnNumericData::kDouble);
     nAttr.setKeyable(true);
     nAttr.setDefault(0.0);
-    nAttr.setSoftMin(-1.0);
+    nAttr.setMin(0.0);
     nAttr.setSoftMax(1.0);
 
     centerAngle = nAttr.create("centerAngle", "ca", MFnNumericData::kDouble);
@@ -350,11 +362,6 @@ MStatus weightDriver::initialize()
     nAttr.setArray(true);
     nAttr.setUsesArrayDataBuilder(true);
 
-    outWeight = nAttr.create("outWeight", "ow", MFnNumericData::kDouble);
-    nAttr.setWritable(true);
-    nAttr.setKeyable(false);
-    nAttr.setDefault(0.0);
-
     poseDrawTwist = nAttr.create("poseDrawTwist", "pdt", MFnNumericData::kDouble);
     nAttr.setWritable(false);
     nAttr.setStorable(false);
@@ -433,6 +440,16 @@ MStatus weightDriver::initialize()
     useTranslate = nAttr.create("useTranslate", "ut", MFnNumericData::kBoolean);
     nAttr.setKeyable(true);
     nAttr.setDefault(false);
+    
+    mean = nAttr.create("meanDistance", "md", MFnNumericData::kDouble);
+    nAttr.setKeyable(false);
+    nAttr.setHidden(true);
+    nAttr.setDefault(0.0);
+    
+    variance = nAttr.create("variance", "var", MFnNumericData::kDouble);
+    nAttr.setKeyable(false);
+    nAttr.setHidden(true);
+    nAttr.setDefault(0.0);
 
     //
     // MFnMessageAttribute
@@ -544,7 +561,6 @@ MStatus weightDriver::initialize()
     addAttribute(drawCone);
     addAttribute(drawCenter);
     addAttribute(drawWeight);
-    addAttribute(outWeight);
     addAttribute(readerMatrix);
     addAttribute(driverMatrix);
     addAttribute(driverList);
@@ -567,7 +583,8 @@ MStatus weightDriver::initialize()
     addAttribute(rbfMode);
     addAttribute(evaluate);
     addAttribute(kernel);
-    addAttribute(bias);
+    addAttribute(radiusType);
+    addAttribute(radius);
     addAttribute(useInterpolation);
     addAttribute(allowNegative);
     addAttribute(scale);
@@ -585,6 +602,8 @@ MStatus weightDriver::initialize()
     addAttribute(poseDrawVector);
     addAttribute(poseDrawTwist);
     addAttribute(exposeData);
+    addAttribute(mean);
+    addAttribute(variance);
 
     // -----------------------------------------------------------------
     // affects
@@ -593,7 +612,7 @@ MStatus weightDriver::initialize()
     attributeAffects(weightDriver::active, weightDriver::output);
     attributeAffects(weightDriver::allowNegative, weightDriver::output);
     attributeAffects(weightDriver::angle, weightDriver::output);
-    attributeAffects(weightDriver::bias, weightDriver::output);
+    attributeAffects(weightDriver::radius, weightDriver::output);
     attributeAffects(weightDriver::centerAngle, weightDriver::output);
     attributeAffects(weightDriver::curveRamp, weightDriver::output);
     attributeAffects(weightDriver::direction, weightDriver::output);
@@ -623,31 +642,10 @@ MStatus weightDriver::initialize()
     attributeAffects(weightDriver::twistAngle, weightDriver::output);
     attributeAffects(weightDriver::twistAxis, weightDriver::output);
     attributeAffects(weightDriver::type, weightDriver::output);
+    attributeAffects(weightDriver::radiusType, weightDriver::output);
     attributeAffects(weightDriver::useInterpolation, weightDriver::output);
     attributeAffects(weightDriver::useRotate, weightDriver::output);
     attributeAffects(weightDriver::useTranslate, weightDriver::output);
-
-    // -----------------------------------------------------------------
-    // affects also the legacy outWeight plug
-    // (to not break compatibility)
-    // -----------------------------------------------------------------
-    attributeAffects(weightDriver::active, weightDriver::outWeight);
-    attributeAffects(weightDriver::angle, weightDriver::outWeight);
-    attributeAffects(weightDriver::centerAngle, weightDriver::outWeight);
-    attributeAffects(weightDriver::curveRamp, weightDriver::outWeight);
-    attributeAffects(weightDriver::direction, weightDriver::outWeight);
-    attributeAffects(weightDriver::driverMatrix, weightDriver::outWeight);
-    attributeAffects(weightDriver::interpolate, weightDriver::outWeight);
-    attributeAffects(weightDriver::invert, weightDriver::outWeight);
-    attributeAffects(weightDriver::grow, weightDriver::outWeight);
-    attributeAffects(weightDriver::readerMatrix, weightDriver::outWeight);
-    attributeAffects(weightDriver::translateMax, weightDriver::outWeight);
-    attributeAffects(weightDriver::translateMin, weightDriver::outWeight);
-    attributeAffects(weightDriver::twist, weightDriver::outWeight);
-    attributeAffects(weightDriver::twistAngle, weightDriver::outWeight);
-    attributeAffects(weightDriver::type, weightDriver::outWeight);
-    attributeAffects(weightDriver::useRotate, weightDriver::outWeight);
-    attributeAffects(weightDriver::useTranslate, weightDriver::outWeight);
 
     return MStatus::kSuccess;
 }
@@ -727,7 +725,7 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
     MPlug activePlug(thisNode, weightDriver::active);
     MPlug allowNegativePlug(thisNode, weightDriver::allowNegative);
     MPlug anglePlug(thisNode, weightDriver::angle);
-    MPlug biasPlug(thisNode, weightDriver::bias);
+    MPlug radiusPlug(thisNode, weightDriver::radius);
     MPlug centerAnglePlug(thisNode, weightDriver::centerAngle);
     MPlug dirPlug(thisNode, weightDriver::direction);
     MPlug distanceTypePlug(thisNode, weightDriver::distanceType);
@@ -747,14 +745,17 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
     MPlug twistAnglePlug(thisNode, weightDriver::twistAngle);
     MPlug twistAxisPlug(thisNode, weightDriver::twistAxis);
     MPlug typePlug(thisNode, weightDriver::type);
+    MPlug radiusTypePlug(thisNode, weightDriver::radiusType);
     MPlug useInterpolationPlug(thisNode, weightDriver::useInterpolation);
     MPlug useRotatePlug(thisNode, weightDriver::useRotate);
     MPlug useTranslatePlug(thisNode, weightDriver::useTranslate);
+    MPlug meanPlug(thisNode, weightDriver::mean);
+    MPlug variancePlug(thisNode, weightDriver::variance);
 
     bool activeVal = activePlug.asBool();
     bool allowNegativeVal = allowNegativePlug.asBool();
     angleVal = anglePlug.asDouble();
-    double biasVal = biasPlug.asDouble();
+    radiusVal = radiusPlug.asDouble();
     centerAngleVal = centerAnglePlug.asDouble();
     dirVal = dirPlug.asShort();
     distanceTypeVal = distanceTypePlug.asShort();
@@ -764,7 +765,7 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
     bool growVal = useMaxPlug.asBool();
     short interVal = interpolatePlug.asShort();
     invVal = invPlug.asBool();
-    short kernelVal = kernelPlug.asShort();
+    kernelVal = kernelPlug.asShort();
     bool oppositeVal = oppositePlug.asBool();
     double scaleVal = scalePlug.asDouble();
     double twistAngleVal = twistAnglePlug.asDouble();
@@ -776,11 +777,14 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
     bool useRotateVal = useRotatePlug.asBool();
     bool useTranslateVal = useTranslatePlug.asBool();
     typeVal = typePlug.asShort();
+    radiusTypeVal = radiusTypePlug.asShort();
+    meanVal = meanPlug.asDouble();
+    varianceVal = variancePlug.asDouble();
 
     curveAttr = MRampAttribute(thisNode, curveRamp, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    if (((plug == output && typeVal != 0) || (plug == outWeight && typeVal == 0)) && activeVal)
+    if (plug == output && activeVal)
     {
         // Deactivate the node if the state is set to HasNoEffect.
         MDataHandle stateData = data.inputValue(state, &status);
@@ -943,10 +947,6 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
 
             // Pass the weight to the array output.
             weightsArray.set(weightVal, 0);
-
-            // Pass the weight to the legacy outWeight plug.
-            MDataHandle outWeightHandle = data.outputValue(outWeight);
-            outWeightHandle.setDouble(weightsArray[0]);
         }
 
         // -------------------------------------------------------------
@@ -1034,6 +1034,12 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
 
                 solveCount = poseCount;
             }
+            
+            // Store the pose values for debugging.
+            // The original values get normalized before solving
+            // therefore, a copy needs to be kept for when the solve
+            // fails.
+            matDebug = matPoses;
 
             if (exposeDataVal == 1 || exposeDataVal == 4)
             {
@@ -1055,42 +1061,64 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
 
                 if (evalInput)
                 {
+                    // MGlobal::displayInfo("Initialize matrices");
+                    
+                    // -------------------------------------------------
+                    // normalization
+                    // -------------------------------------------------
+                    
+                    // Get the normalization factors.
+                    inputNorms = matPoses.normsColumn();
+                    // Normalize the pose matrix.
+                    matPoses.normalizeColumns(inputNorms);
+                    
+                    if (exposeDataVal == 1 || exposeDataVal == 4)
+                        showArray(inputNorms, thisName + " : Pose norms");
+                    
                     // -------------------------------------------------
                     // distances
                     // -------------------------------------------------
 
                     // Create a distance matrix from all poses and
-                    // calculate the mean distance for the rbf function.
+                    // calculate the mean and standard deviation for the
+                    // rbf function.
                     BRMatrix linMat;
-                    meanDist = 0.0;
-                    linMat = getDistances(matPoses, meanDist, distanceTypeVal);
+                    linMat = getDistances(matPoses, distanceTypeVal);
+                    meanVal = linMat.mean();
+                    varianceVal = linMat.variance();
+                    
+                    // Store the mean distance and variance on the
+                    // hidden attributes to be able to access them when
+                    // the radius type changes.
+                    meanPlug.setValue(meanVal);
+                    variancePlug.setValue(varianceVal);
 
                     if (exposeDataVal > 2)
+                    {
                         linMat.show(thisName, "Distance matrix");
-
+                        MGlobal::displayInfo(MString("Mean distance: ") + meanVal);
+                        MGlobal::displayInfo(MString("Variance: ") + varianceVal);
+                    }
+                    
                     // -------------------------------------------------
                     // activations
                     // -------------------------------------------------
 
                     // Transform the distance matrix to include the
                     // activation values.
-                    getActivations(linMat, meanDist, kernelVal);
+                    getActivations(linMat, getRadiusValue(), kernelVal);
 
                     if (exposeDataVal > 2)
                         linMat.show(thisName, "Activations");
 
                     // -------------------------------------------------
-                    // prepare
+                    // solve for each dimension
                     // -------------------------------------------------
 
                     // create the matrix to store the weights
                     wMat = BRMatrix();
                     wMat.setSize(poseCount, solveCount);
-
-                    // -------------------------------------------------
-                    // solve for each dimension
-                    // -------------------------------------------------
-
+                    
                     for (c = 0; c < solveCount; c ++)
                     {
                         // Get the pose values for each dimension.
@@ -1103,10 +1131,16 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
                         BRMatrix solveMat = linMat;
 
                         double* w = new double [poseCount];
-                        bool solved = solveMat.solve(y, w);
+                        int singularIndex;
+                        bool solved = solveMat.solve(y, w, singularIndex);
                         if (!solved)
                         {
-                            MGlobal::displayError("RBF decomposition failed");
+                            MGlobal::displayInfo("");
+                            MGlobal::displayInfo(thisName + MString(": RBF Error"));
+                            MGlobal::displayInfo(MString("Value error for pose at index: ") + singularIndex);
+                            MGlobal::displayInfo("The pose has no unique values and matches another pose.");
+                            matDebug.show(thisName, "Pose Input Values (Poses appear in rows)");
+                            MGlobal::displayError("RBF decomposition failed. See script editor for details.");
                             return MStatus::kFailure;
                         }
 
@@ -1127,10 +1161,11 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
 
                 getPoseWeights(weightsArray,
                                matPoses,
+                               inputNorms,
                                driver,
                                poseModes,
                                wMat,
-                               meanDist,
+                               getRadiusValue(),
                                distanceTypeVal,
                                kernelVal);
 
@@ -1147,9 +1182,6 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
 
                     if (value < 0.0 && !allowNegativeVal)
                         value = 0.0;
-
-                    if (biasVal != 0.0)
-                        value = rbfWeightBias(value, biasVal);
 
                     if (useInterpolationVal)
                         value = interpolateWeight(value, interVal);
@@ -1475,13 +1507,6 @@ MStatus weightDriver::getPoseVectors(MDataBlock &data,
 
             if (d == driverId)
             {
-                // Copy the pose vectors and twist for the legacy
-                // viewport display.
-                poseVectorArray.copy(poseVectorsDraw);
-                poseVectorArray.append(driverMVecDraw);
-                poseTwistArray.copy(poseTwist);
-                poseTwistArray.append(driver[3 + increment]);
-
                 // Copy the pose vectors and twist values for the VP 2.0
                 // display.
                 MArrayDataHandle pvHandle = data.outputArrayValue(poseDrawVector);
@@ -1612,7 +1637,7 @@ MStatus weightDriver::getPoseData(MDataBlock &data,
 
     // Make sure to start at a pose index of 0.
     // Because Maya creates sparse arrays it's possible that the first
-    // pose gets lost when a rest pose is present which only contain
+    // pose gets lost when a rest pose is present which only contains
     // zero values.
     if (poseCount != 0 && poseIds[0] != 0)
     {
@@ -1776,6 +1801,30 @@ MStatus weightDriver::getPoseData(MDataBlock &data,
 
 //
 // Description:
+//      Calculate the linear distance between two vectors.
+//
+// Input Arguments:
+//      vec1            The first vector.
+//      vec2            The second vector.
+//
+// Return Value:
+//      double          The linear distance.
+//
+double weightDriver::getRadiusValue()
+{
+    if (radiusTypeVal == 0)
+        return meanVal;
+    else if (radiusTypeVal == 1)
+        return varianceVal;
+    else if (radiusTypeVal == 2)
+        return sqrt(varianceVal);
+    else
+        return radiusVal;
+}
+
+
+//
+// Description:
 //      Calculate the twist angle based on the given rotate order.
 //
 // Input Arguments:
@@ -1799,18 +1848,15 @@ double weightDriver::getTwistAngle(MQuaternion q, unsigned int axis)
 //
 // Description:
 //      Build a matrix containing the distance values between all poses.
-//      Based on all distances also calculate the general mean distance
-//      which is needed for the RBF calculation.
 //
 // Input Arguments:
 //      poseMat         The matrix containing all poses.
-//      meanDist        The average distance between the poses.
 //      distType        The distance type (linear/angle).
 //
 // Return Value:
-//      BRMatrix        The twist angle.
+//      BRMatrix        The distance matrix.
 //
-BRMatrix weightDriver::getDistances(BRMatrix poseMat, double &meanDist, int distType)
+BRMatrix weightDriver::getDistances(BRMatrix poseMat, int distType)
 {
     unsigned count = poseMat.getRowSize();
 
@@ -1819,19 +1865,14 @@ BRMatrix weightDriver::getDistances(BRMatrix poseMat, double &meanDist, int dist
     BRMatrix distMat;
     distMat.setSize(count, count);
 
-    double sum = 0.0;
-
     for (i = 0; i < count; i ++)
     {
         for (j = 0; j < count; j ++)
         {
             double dist = getPoseDelta(poseMat.getRowVector(i), poseMat.getRowVector(j), distType);
             distMat(i, j) = dist;
-            sum += dist;
         }
     }
-
-    meanDist = sum / (count * count);
 
     return distMat;
 }
@@ -1949,26 +1990,74 @@ void weightDriver::getActivations(BRMatrix &mat, double width, short kernelType)
 double weightDriver::interpolateRbf(double value, double width, short kernelType)
 {
     double result = 0.0;
-
-    // gaussian
-    if (kernelType == 0)
+    
+    if (width == 0.0)
+        width = 1.0;
+    
+    // linear
+    result = value;
+    
+    // gaussian 1
+    if (kernelType == 1)
     {
-        if (width == 0.0)
-            width = 1.0;
         width = 1.0 / width;
         double sigma = -(width * width);
         result = exp(sigma * value);
     }
-    // linear
-    else if (kernelType == 1)
+    // gaussian 2
+    else if (kernelType == 2)
     {
-        result = value;
+        width *= 0.707;
+        result = exp(-(value * value) / (2.0 * width * width));
+    }
+    // thin plate
+    else if (kernelType == 3)
+    {
+        value /= width;
+        if (value > 0)
+            result = value * value * log(value);
+        else
+            result = value;
+    }
+    // multi quadratic
+    else if (kernelType == 4)
+    {
+        result = sqrt((value * value) + (width * width));
+    }
+    // inverse multi quadratic
+    else if (kernelType == 5)
+    {
+        result = 1.0 / sqrt((value * value) + (width * width));
     }
 
     return result;
 }
 
 
+//
+// Description:
+//      Normalize the given vector with the given factors.
+//
+// Input Arguments:
+//      vec             The vector to normalize.
+//      factor          The vector or factors.
+//
+// Return Value:
+//      vector          The normalized vector.
+//
+std::vector<double> weightDriver::normalizeVector(std::vector<double> vec, std::vector<double> factors)
+{
+    if (vec.size() != factors.size())
+        return vec;
+
+    for (unsigned i = 0; i < vec.size(); i ++)
+    {
+        if (factors[i] > 0)
+            vec[i] /= factors[i];
+    }
+
+    return vec;
+}
 //
 // Description:
 //      Calculate the individual output weights based on the current
@@ -1981,10 +2070,11 @@ double weightDriver::interpolateRbf(double value, double width, short kernelType
 // Input Arguments:
 //      out             The array of output weight values.
 //      poses           The matrix containing all poses.
+//      norms           The normalization factors for each column.
 //      driver          The array of driver values.
 //      poseModes       The array containing the the mode per pose.
 //      weightMat       The matrix with the RBF weights.
-//      avgDist         The average distance between the poses.
+//      width           The average distance between the poses.
 //      distType        The distance type (linear/angle).
 //      kernelType      The interpolation function.
 //
@@ -1993,10 +2083,11 @@ double weightDriver::interpolateRbf(double value, double width, short kernelType
 //
 void weightDriver::getPoseWeights(MDoubleArray &out,
                                   BRMatrix poses,
+                                  std::vector<double> norms,
                                   std::vector<double> driver,
                                   MIntArray poseModes,
                                   BRMatrix weightMat,
-                                  double avgDist,
+                                  double width,
                                   int distType,
                                   short kernelType)
 {
@@ -2008,7 +2099,9 @@ void weightDriver::getPoseWeights(MDoubleArray &out,
     // matrix mode.
     if (weightMat.getRowSize() != poseCount || weightMat.getColSize() != valueCount)
         return;
-
+    
+    driver = normalizeVector(driver, norms);
+    
     unsigned int i, j;
 
     for (i = 0; i < poseCount; i ++)
@@ -2029,7 +2122,7 @@ void weightDriver::getPoseWeights(MDoubleArray &out,
         dist = getPoseDelta(dv, ps, distType);
 
         for (j = 0; j < valueCount; j ++)
-            out[j] += weightMat(i, j) * interpolateRbf(dist, avgDist, kernelType);
+            out[j] += weightMat(i, j) * interpolateRbf(dist, width, kernelType);
     }
 }
 
@@ -2108,39 +2201,6 @@ void weightDriver::setOutputValues(MDoubleArray weightsArray, MDataBlock data, b
 
 //
 // Description:
-//      Modify the value by shifting it towards the lower or upper end
-//      of the interpolation range.
-//
-// Input Arguments:
-//      value           The value to shift.
-//      biasValue       The bias value.
-//
-// Return Value:
-//      double          The new value with bias.
-//
-double weightDriver::rbfWeightBias(double value, double biasValue)
-{
-    if (biasValue >= 0.0)
-    {
-        value = fabs(value) * pow(fabs(value), biasValue);
-    }
-    else
-    {
-        double baseVal = 1 - fabs(value);
-        // If the value is 1 the bias transformation has zero at the
-        // base and outputs NaN.
-        if (fabs(baseVal) > DOUBLE_EPSILON)
-            value = 1 - pow(baseVal, (1 + fabs(biasValue)));
-        else
-            value = 1;
-    }
-
-    return value;
-}
-
-
-//
-// Description:
 //      Modify the output weight value by the chosen interpolation type.
 //
 // Input Arguments:
@@ -2207,6 +2267,18 @@ void weightDriver::showArray(MDoubleArray array, MString name)
     MGlobal::displayInfo(s);
 }
 
+void weightDriver::showArray(std::vector<double> array, MString name)
+{
+    unsigned int i;
+
+    MString s(name + ":\n");
+
+    for (i = 0; i < array.size(); i++)
+        s += MString(" ") + array[i];
+
+    MGlobal::displayInfo(s);
+}
+
 void weightDriver::showVector(MVector vector, MString name)
 {
     unsigned int i;
@@ -2239,504 +2311,12 @@ void weightDriver::showMatrix(MMatrix mat, MString name)
 
 // ---------------------------------------------------------------------
 //
-// Draw the locator for the legacy viewport.
-//
-// This applies to the vector angle reader and RBF solver.
-//
-// ---------------------------------------------------------------------
-#if MAYA_API_VERSION < 201900
-
-void weightDriver::draw(M3dView &view,
-                        const MDagPath &path,
-                        M3dView::DisplayStyle style,
-                        M3dView::DisplayStatus status)
-{
-    MObject thisNode = this->thisMObject();
-
-    MStatus stat = MStatus::kSuccess;
-
-    unsigned int i;
-
-    // -----------------------------------------------------------------
-    // get the attributes
-    // -----------------------------------------------------------------
-
-    MPlug activePlug(thisNode, weightDriver::active);
-    MPlug colorRPlug(thisNode, weightDriver::colorR);
-    MPlug colorGPlug(thisNode, weightDriver::colorG);
-    MPlug colorBPlug(thisNode, weightDriver::colorB);
-    MPlug drawCenterPlug(thisNode, weightDriver::drawCenter);
-    MPlug drawConePlug(thisNode, weightDriver::drawCone);
-    MPlug drawDriverPlug(thisNode, weightDriver::drawDriver);
-    MPlug drawIndicesPlug(thisNode, weightDriver::drawIndices);
-    MPlug drawOriginPlug(thisNode, weightDriver::drawOrigin);
-    MPlug drawPosesPlug(thisNode, weightDriver::drawPoses);
-    MPlug drawTwistPlug(thisNode, weightDriver::drawTwist);
-    MPlug drawWeightPlug(thisNode, weightDriver::drawWeight);
-    //MPlug driverIndexPlug(thisNode, weightDriver::driverIndex);
-    MPlug indexDistPlug(thisNode, weightDriver::indexDist);
-    MPlug outWeightPlug(thisNode, weightDriver::outWeight);
-    MPlug poseLengthPlug(thisNode, weightDriver::poseLength);
-    MPlug rbfModePlug(thisNode, weightDriver::rbfMode);
-    MPlug sizePlug(thisNode, weightDriver::size);
-
-    bool activeVal = activePlug.asBool();
-    float colorRVal = (float)colorRPlug.asDouble();
-    float colorGVal = (float)colorGPlug.asDouble();
-    float colorBVal = (float)colorBPlug.asDouble();
-    double sizeVal = sizePlug.asDouble();
-    bool drawCenterVal = drawCenterPlug.asBool();
-    bool drawConeVal = drawConePlug.asBool();
-    bool drawDriverVal = drawDriverPlug.asBool();
-    bool drawIndicesVal = drawIndicesPlug.asBool();
-    bool drawOriginVal = drawOriginPlug.asBool();
-    bool drawPosesVal = drawPosesPlug.asBool();
-    bool drawTwistVal = drawTwistPlug.asBool();
-    bool drawWeightVal = drawWeightPlug.asBool();
-    //int driverIndexVal = driverIndexPlug.asInt();
-    double indexDistVal = indexDistPlug.asDouble();
-    double poseLengthVal = poseLengthPlug.asDouble();
-    short rbfModeVal = rbfModePlug.asShort();
-    double weightVal = outWeightPlug.asDouble();
-
-    if (!activeVal)
-        return;
-
-    if (invVal && typeVal == 0)
-        sizeVal *= -1;
-
-    // -----------------------------------------------------------------
-    // GL part
-    // -----------------------------------------------------------------
-
-    MColor lineColor;
-
-    if (status == view.kLead)
-        lineColor = MColor(0.26f, 1.0f, 0.64f);
-    else if (status == view.kActive)
-        lineColor = MColor(1.0f, 1.0f, 1.0f);
-    else if (status == view.kActiveAffected)
-        lineColor = MColor(0.78f, 0.0f, 0.78f);
-    else if (status == view.kTemplate)
-        lineColor = MColor(0.47f, 0.47f, 0.47f);
-    else if (status == view.kActiveTemplate)
-        lineColor = MColor(1.0f, 0.47f, 0.47f);
-    else
-        lineColor = MColor(colorRVal, colorGVal, colorBVal);
-
-    view.setDrawColor(lineColor);
-
-    view.beginGL();
-
-    glPushAttrib(GL_CURRENT_BIT);
-
-    // -----------------------------------------------------------------
-    // vector angle cone
-    // -----------------------------------------------------------------
-
-    if (typeVal == 0)
-    {
-        // -------------------------------------------------------------
-        // get the driver node name
-        // -------------------------------------------------------------
-
-        MString driverName;
-        MPlug driverPlug(thisNode, weightDriver::driverMatrix);
-        if (driverPlug.isConnected())
-        {
-            MPlugArray plugConn;
-            driverPlug.connectedTo(plugConn, true, false, &stat);
-            if (stat == MStatus::kSuccess)
-            {
-                driverName = plugConn[0].name();
-                MStringArray items;
-                driverName.split('.', items);
-                driverName = items[0];
-            }
-        }
-
-        // -------------------------------------------------------------
-        // draw lines
-        // -------------------------------------------------------------
-
-        if (drawConeVal)
-        {
-            glBegin(GL_LINES);
-
-            unsigned int steps = 16;
-            double angleStep = 2.0 * M_PI / steps;
-            double increment = 0.0;
-
-            MFloatArray firstPoint;
-            MFloatArray coords;
-            int skip = 0;
-
-            // Modify the angle and size values if the cone should be
-            // drawn past 90 degrees.
-            double drawAngle = angleVal;
-            double drawSize = sizeVal;
-            if (angleVal > 90.0)
-            {
-                drawAngle = 180.0 - angleVal + 0.000000001;
-                drawSize *= -1.0;
-            }
-
-            double angleRadians = drawAngle * DEGTORAD;
-            double radius = sin(angleRadians);
-            float height = (float)((radius / tan(angleRadians)) * drawSize);
-
-            for (i = 0; i < steps; i ++)
-            {
-                float ptX = (float)(radius * cos(increment) * drawSize);
-                float ptY = (float)(radius * sin(increment) * drawSize);
-
-                MFloatArray dirReorder;
-                if (dirVal == 0)
-                {
-                    dirReorder.append(height);
-                    dirReorder.append(ptX);
-                    dirReorder.append(ptY);
-                }
-                else if (dirVal == 1)
-                {
-                    dirReorder.append(ptX);
-                    dirReorder.append(height);
-                    dirReorder.append(ptY);
-                }
-                else
-                {
-                    dirReorder.append(ptX);
-                    dirReorder.append(ptY);
-                    dirReorder.append(height);
-                }
-
-                coords.append(dirReorder[0]);
-                coords.append(dirReorder[1]);
-                coords.append(dirReorder[2]);
-
-                // Store the first point which is needed for the last
-                // segment as the end point.
-                if (firstPoint.length() == 0)
-                {
-                    firstPoint.append(dirReorder[0]);
-                    firstPoint.append(dirReorder[1]);
-                    firstPoint.append(dirReorder[2]);
-                }
-
-                // If there are six values draw the segment.
-                if (coords.length() == 6)
-                {
-                    glVertex3f(coords[0], coords[1], coords[2]);
-                    glVertex3f(coords[3], coords[4], coords[5]);
-                    coords.remove(0);
-                    coords.remove(0);
-                    coords.remove(0);
-                }
-
-                // Draw a line from the cone tip every other segment.
-                if (skip == 0)
-                {
-                    glVertex3f(0.0, 0.0, 0.0);
-                    glVertex3f(coords[0], coords[1], coords[2]);
-                    skip = 1;
-                }
-                else
-                    skip = 0;
-
-                increment += angleStep;
-            }
-
-            // Draw the last segment.
-            coords.append(firstPoint[0]);
-            coords.append(firstPoint[1]);
-            coords.append(firstPoint[2]);
-            glVertex3f(coords[0], coords[1], coords[2]);
-            glVertex3f(coords[3], coords[4], coords[5]);
-
-            glEnd();
-        }
-
-        if (drawCenterVal && drawConeVal)
-        {
-            glBegin(GL_LINES);
-
-            unsigned int steps = 16;
-            double angleStep = 2.0 * M_PI / steps;
-            double increment = 0.0;
-
-            MFloatArray firstPoint;
-            MFloatArray coords;
-            int skip = 0;
-
-            // Modify the angle and size values if the cone should be
-            // drawn past 90 degrees.
-            double drawAngle = centerAngleVal;
-            double drawSize = sizeVal;
-            if (centerAngleVal > 90.0)
-            {
-                drawAngle = 180.0 - centerAngleVal;
-                drawSize *= -1.0;
-            }
-
-            double angleRadians = (drawAngle + 0.000000001) * DEGTORAD;
-            double radius = sin(angleRadians);
-            float height = (float)((radius / tan(angleRadians)) * drawSize);
-
-            for (i = 0; i < steps; i ++)
-            {
-                float ptX = (float)(radius * cos(increment) * drawSize);
-                float ptY = (float)(radius * sin(increment) * drawSize);
-
-                MFloatArray dirReorder;
-                if (dirVal == 0)
-                {
-                    dirReorder.append(height);
-                    dirReorder.append(ptX);
-                    dirReorder.append(ptY);
-                }
-                else if (dirVal == 1)
-                {
-                    dirReorder.append(ptX);
-                    dirReorder.append(height);
-                    dirReorder.append(ptY);
-                }
-                else
-                {
-                    dirReorder.append(ptX);
-                    dirReorder.append(ptY);
-                    dirReorder.append(height);
-                }
-
-                coords.append(dirReorder[0]);
-                coords.append(dirReorder[1]);
-                coords.append(dirReorder[2]);
-
-                // Store the first point which is needed for the last
-                // segment as the end point.
-                if (firstPoint.length() == 0)
-                {
-                    firstPoint.append(dirReorder[0]);
-                    firstPoint.append(dirReorder[1]);
-                    firstPoint.append(dirReorder[2]);
-                }
-
-                // If there are six values draw the segment.
-                if (coords.length() == 6)
-                {
-                    glVertex3f(coords[0], coords[1], coords[2]);
-                    glVertex3f(coords[3], coords[4], coords[5]);
-                    coords.remove(0);
-                    coords.remove(0);
-                    coords.remove(0);
-                }
-
-                // Draw a line from the cone tip every other segment.
-                if (skip == 0)
-                {
-                    glVertex3f(0.0, 0.0, 0.0);
-                    glVertex3f(coords[0], coords[1], coords[2]);
-                    skip = 1;
-                }
-                else
-                    skip = 0;
-
-                increment += angleStep;
-            }
-
-            // Draw the last segment.
-            coords.append(firstPoint[0]);
-            coords.append(firstPoint[1]);
-            coords.append(firstPoint[2]);
-            glVertex3f(coords[0], coords[1], coords[2]);
-            glVertex3f(coords[3], coords[4], coords[5]);
-
-            glEnd();
-        }
-
-        // -------------------------------------------------------------
-        // draw weight value
-        // -------------------------------------------------------------
-
-        if (drawWeightVal)
-        {
-            MPoint drawPoint;
-            if (dirVal == 0)
-                drawPoint = MPoint(sizeVal, 0.0, 0.0);
-            else if (dirVal == 1)
-                drawPoint = MPoint(0.0, sizeVal, 0.0);
-            else
-                drawPoint = MPoint(0.0, 0.0, sizeVal);
-
-            char info[512];
-        #ifdef _WIN64
-            sprintf_s(info, "%s %.3f", driverName.asChar(), weightVal);
-        #else
-            sprintf(info, "%s %.3f", driverName.asChar(), weightVal);
-        #endif
-            if (!invVal)
-                view.drawText(info, drawPoint, M3dView::kLeft);
-            else
-                view.drawText(info, drawPoint, M3dView::kRight);
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // rbf sphere
-    // -----------------------------------------------------------------
-
-    // Draw the rbf elements only when in transform mode.
-    else if (rbfModeVal == 1)
-    {
-        // Remove the driver vector at the end of the array for the
-        // pose count.
-        unsigned int poseVectorArraySize = poseVectorArray.length();
-        unsigned int poseCount = poseVectorArraySize - 1;
-        double lineSize = poseLengthVal * sizeVal;
-
-        if (poseCount < 1)
-        {
-            glPopAttrib();
-            view.endGL();
-            return;
-        }
-
-        if (drawOriginVal)
-        {
-            // In order to draw the circle in 3d space but oriented to
-            // the view get the model view matrix and reset the
-            // translation and scale. The points to draw are then
-            // multiplied by the inverse matrix.
-            MMatrix modelViewMat;
-            view.modelViewMatrix(modelViewMat);
-            MTransformationMatrix transMat(modelViewMat);
-            transMat.setTranslation(MVector(0.0, 0.0, 0.0), MSpace::kWorld);
-            const double scale[3] = {1.0, 1.0, 1.0};
-            transMat.setScale(scale, MSpace::kWorld);
-            modelViewMat = transMat.asMatrix();
-
-            glBegin(GL_LINE_LOOP);
-
-            for (i = 0; i < 360; i +=2)
-            {
-                double degInRad = i * DEGTORAD;
-                MPoint point(cos(degInRad) * sizeVal, sin(degInRad) * sizeVal, 0.0);
-                point *= modelViewMat.inverse();
-                glVertex3f((float)point.x, (float)point.y, (float)point.z);
-            }
-
-            glEnd();
-        }
-
-        if (drawDriverVal)
-        {
-            glBegin(GL_LINES);
-
-            MVector dv = poseVectorArray[poseVectorArraySize - 1];
-            dv.normalize();
-            MPoint point(dv.x * lineSize, dv.y * lineSize, dv.z * lineSize);
-            glVertex3f(0.0, 0.0, 0.0);
-            glVertex3f((float)point.x, (float)point.y, (float)point.z);
-
-            glEnd();
-
-            if (drawTwistVal)
-            {
-                dv *= 0.9 + indexDistVal;
-
-                point = MPoint(dv.x * lineSize, dv.y * lineSize, dv.z * lineSize);
-
-                char info[64];
-            #ifdef _WIN64
-                sprintf_s(info, "%.2f", poseTwistArray[poseVectorArraySize - 1] * RADTODEG);
-            #else
-                sprintf(info, "%.2f", poseTwistArray[poseVectorArraySize - 1] * RADTODEG);
-            #endif
-
-                view.drawText(info, point, M3dView::kRight);
-            }
-        }
-
-        if (drawPosesVal)
-        {
-            if (poseCount != 0)
-            {
-                for (i = 0; i < (unsigned)poseCount; i ++)
-                {
-                    glBegin(GL_LINES);
-
-                    MVector pv = poseVectorArray[i];
-                    pv.normalize();
-                    MPoint point(pv.x * lineSize, pv.y * lineSize, pv.z * lineSize);
-                    glVertex3f(0.0, 0.0, 0.0);
-                    glVertex3f((float)point.x, (float)point.y, (float)point.z);
-
-                    glEnd();
-
-                    if (drawTwistVal)
-                    {
-                        pv *= 0.9 + indexDistVal;
-
-                        point = MPoint(pv.x * lineSize, pv.y * lineSize, pv.z * lineSize);
-
-                        char info[64];
-                    #ifdef _WIN64
-                        sprintf_s(info, "%.2f", poseTwistArray[i] * RADTODEG);
-                    #else
-                        sprintf(info, "%.2f", poseTwistArray[i] * RADTODEG);
-                    #endif
-
-                        view.drawText(info, point, M3dView::kRight);
-                    }
-                }
-            }
-        }
-
-        if (drawIndicesVal)
-        {
-            if (poseCount != 0)
-            {
-                for (i = 0; i < (unsigned)poseCount; i ++)
-                {
-                    MVector pv = poseVectorArray[i];
-                    pv.normalize();
-                    pv *= 1.03 + indexDistVal;
-
-                    MPoint point(pv.x * lineSize, pv.y * lineSize, pv.z * lineSize);
-
-                    char info[64];
-                #ifdef _WIN64
-                    sprintf_s(info, "%i", poseMatrixIds[i]);
-                #else
-                    sprintf(info, "%i", poseMatrixIds[i]);
-                #endif
-
-                    view.drawText(info, point, M3dView::kCenter);
-                }
-            }
-        }
-    }
-
-    glPopAttrib();
-    view.endGL();
-}
-#endif
-
-
-// ---------------------------------------------------------------------
-//
 // Viewport 2.0
 //
 // ---------------------------------------------------------------------
-#if MAYA_API_VERSION >= 201400
 
 MString weightDriver::drawDbClassification("drawdb/geometry/weightDriver");
 MString weightDriver::drawRegistrantId("weightDriverNodePlugin");
-
-// VP2.0 API for Maya 2016.5 and later.
-//
-// The overrides for Maya 2016.5 and later are different than for
-// earlier versions of Maya.
-#if MAYA_API_VERSION >= 201650
 
 // By setting isAlwaysDirty to false in MPxDrawOverride constructor, the
 // draw override will be updated (via prepareForDraw()) only when the
@@ -2785,22 +2365,6 @@ MHWRender::DrawAPI weightDriverOverride::supportedDrawAPIs() const
 {
     return (MHWRender::kOpenGL | MHWRender::kDirectX11 | MHWRender::kOpenGLCoreProfile);
 }
-
-
-//
-// VP2.0 API for Maya 2016 and earlier.
-//
-#else
-weightDriverOverride::weightDriverOverride(const MObject &obj)
-: MHWRender::MPxDrawOverride(obj, weightDriverOverride::draw)
-{
-}
-
-
-weightDriverOverride::~weightDriverOverride()
-{
-}
-#endif
 
 
 MBoundingBox weightDriverOverride::boundingBox(const MDagPath &objPath,
@@ -2868,7 +2432,6 @@ MUserData* weightDriverOverride::prepareForDraw(const MDagPath &objPath,
     MPlug rbfModePlug(thisNode, weightDriver::rbfMode);
     MPlug sizePlug(thisNode, weightDriver::size);
     MPlug typePlug(thisNode, weightDriver::type);
-    MPlug weightPlug(thisNode, weightDriver::outWeight);
 
     data->activeVal = activePlug.asBool();
     data->angleVal = anglePlug.asDouble();
@@ -2889,7 +2452,6 @@ MUserData* weightDriverOverride::prepareForDraw(const MDagPath &objPath,
     data->rbfModeVal = rbfModePlug.asShort();
     data->sizeVal = sizePlug.asDouble();
     data->typeVal = typePlug.asShort();
-    data->weightVal = weightPlug.asDouble();
 
     MHWRender::DisplayStatus stat = MHWRender::MGeometryUtilities::displayStatus(objPath);
 
@@ -3283,12 +2845,10 @@ void weightDriverOverride::draw(const MHWRender::MDrawContext &context, const MU
 }
 #endif
 
-#endif
-
 // ---------------------------------------------------------------------
 // MIT License
 //
-// Copyright (c) 2021 Ingo Clemens, brave rabbit
+// Copyright (c) 2021-2023 Ingo Clemens, brave rabbit
 // weightDriver is under the terms of the MIT License
 //
 // Permission is hereby granted, free of charge, to any person obtaining
