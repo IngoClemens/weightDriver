@@ -11,7 +11,7 @@
 #include <maya/MDrawRegistry.h>
 #include <maya/MFnPlugin.h>
 
-static const std::string kVERSION = "4.0.0";
+static const std::string kVERSION = "4.0.1";
 
 #include "weightDriver.h"
 

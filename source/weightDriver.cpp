@@ -55,6 +55,8 @@ MObject weightDriver::drawCenter;
 MObject weightDriver::drawCone;
 MObject weightDriver::drawWeight;
 MObject weightDriver::size;
+// output
+MObject weightDriver::outWeight;
 
 
 // -----------------------------------------------
@@ -361,6 +363,11 @@ MStatus weightDriver::initialize()
     nAttr.setWritable(true);
     nAttr.setArray(true);
     nAttr.setUsesArrayDataBuilder(true);
+    
+    outWeight = nAttr.create("outWeight", "ow", MFnNumericData::kDouble);
+    nAttr.setWritable(true);
+    nAttr.setKeyable(false);
+    nAttr.setDefault(0.0);
 
     poseDrawTwist = nAttr.create("poseDrawTwist", "pdt", MFnNumericData::kDouble);
     nAttr.setWritable(false);
@@ -561,6 +568,7 @@ MStatus weightDriver::initialize()
     addAttribute(drawCone);
     addAttribute(drawCenter);
     addAttribute(drawWeight);
+    addAttribute(outWeight);
     addAttribute(readerMatrix);
     addAttribute(driverMatrix);
     addAttribute(driverList);
@@ -646,6 +654,28 @@ MStatus weightDriver::initialize()
     attributeAffects(weightDriver::useInterpolation, weightDriver::output);
     attributeAffects(weightDriver::useRotate, weightDriver::output);
     attributeAffects(weightDriver::useTranslate, weightDriver::output);
+
+    // -----------------------------------------------------------------
+    // affects also the legacy outWeight plug
+    // (to not break compatibility)
+    // -----------------------------------------------------------------
+    attributeAffects(weightDriver::active, weightDriver::outWeight);
+    attributeAffects(weightDriver::angle, weightDriver::outWeight);
+    attributeAffects(weightDriver::centerAngle, weightDriver::outWeight);
+    attributeAffects(weightDriver::curveRamp, weightDriver::outWeight);
+    attributeAffects(weightDriver::direction, weightDriver::outWeight);
+    attributeAffects(weightDriver::driverMatrix, weightDriver::outWeight);
+    attributeAffects(weightDriver::interpolate, weightDriver::outWeight);
+    attributeAffects(weightDriver::invert, weightDriver::outWeight);
+    attributeAffects(weightDriver::grow, weightDriver::outWeight);
+    attributeAffects(weightDriver::readerMatrix, weightDriver::outWeight);
+    attributeAffects(weightDriver::translateMax, weightDriver::outWeight);
+    attributeAffects(weightDriver::translateMin, weightDriver::outWeight);
+    attributeAffects(weightDriver::twist, weightDriver::outWeight);
+    attributeAffects(weightDriver::twistAngle, weightDriver::outWeight);
+    attributeAffects(weightDriver::type, weightDriver::outWeight);
+    attributeAffects(weightDriver::useRotate, weightDriver::outWeight);
+    attributeAffects(weightDriver::useTranslate, weightDriver::outWeight);
 
     return MStatus::kSuccess;
 }
@@ -784,7 +814,7 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
     curveAttr = MRampAttribute(thisNode, curveRamp, &status);
     CHECK_MSTATUS_AND_RETURN_IT(status);
 
-    if (plug == output && activeVal)
+    if (((plug == output && typeVal != 0) || (plug == outWeight && typeVal == 0)) && activeVal)
     {
         // Deactivate the node if the state is set to HasNoEffect.
         MDataHandle stateData = data.inputValue(state, &status);
@@ -947,6 +977,10 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
 
             // Pass the weight to the array output.
             weightsArray.set(weightVal, 0);
+
+            // Pass the weight to the legacy outWeight plug.
+            MDataHandle outWeightHandle = data.outputValue(outWeight);
+            outWeightHandle.setDouble(weightsArray[0]);
         }
 
         // -------------------------------------------------------------
@@ -1002,7 +1036,8 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
                                      solveCount,
                                      matPoses,
                                      matValues,
-                                     poseModes);
+                                     poseModes,
+                                     inputNorms);
                 CHECK_MSTATUS_AND_RETURN_IT(status);
             }
             else
@@ -1024,7 +1059,8 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
                                         poseModes,
                                         (unsigned)twistAxisVal,
                                         oppositeVal,
-                                        (unsigned)driverIndexVal);
+                                        (unsigned)driverIndexVal,
+                                        inputNorms);
                 CHECK_MSTATUS_AND_RETURN_IT(status);
 
                 // Override the distance type for the matrix mode to
@@ -1043,7 +1079,7 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
 
             if (exposeDataVal == 1 || exposeDataVal == 4)
             {
-                matPoses.show(thisName, "Poses");
+                matPoses.show(thisName, "Poses (normalized)");
                 matValues.show(thisName, "Values");
                 //BRMatrix().showVector(driver, "driver");
             }
@@ -1062,19 +1098,7 @@ MStatus weightDriver::compute(const MPlug &plug, MDataBlock &data)
                 if (evalInput)
                 {
                     // MGlobal::displayInfo("Initialize matrices");
-                    
-                    // -------------------------------------------------
-                    // normalization
-                    // -------------------------------------------------
-                    
-                    // Get the normalization factors.
-                    inputNorms = matPoses.normsColumn();
-                    // Normalize the pose matrix.
-                    matPoses.normalizeColumns(inputNorms);
-                    
-                    if (exposeDataVal == 1 || exposeDataVal == 4)
-                        showArray(inputNorms, thisName + " : Pose norms");
-                    
+                                        
                     // -------------------------------------------------
                     // distances
                     // -------------------------------------------------
@@ -1247,7 +1271,8 @@ MStatus weightDriver::getPoseVectors(MDataBlock &data,
                                      MIntArray &poseModes,
                                      unsigned twistAxisVal,
                                      bool invertAxes,
-                                     unsigned driverId)
+                                     unsigned driverId,
+                                     std::vector<double>&normFactors)
 {
     MStatus status = MStatus::kSuccess;
 
@@ -1541,6 +1566,15 @@ MStatus weightDriver::getPoseVectors(MDataBlock &data,
 
         increment += 4;
     }
+    
+    // -------------------------------------------------
+    // normalization
+    // -------------------------------------------------
+    
+    // Get the normalization factors.
+    normFactors = poseData.normsColumn();
+    // Normalize the pose matrix.
+    poseData.normalizeColumns(normFactors);
 
     return status;
 }
@@ -1569,7 +1603,8 @@ MStatus weightDriver::getPoseData(MDataBlock &data,
                                   unsigned &solveCount,
                                   BRMatrix &poseData,
                                   BRMatrix &poseVals,
-                                  MIntArray &poseModes)
+                                  MIntArray &poseModes,
+                                  std::vector<double>&normFactors)
 {
     MStatus status = MStatus::kSuccess;
 
@@ -1793,6 +1828,15 @@ MStatus weightDriver::getPoseData(MDataBlock &data,
             // consistent.
             poseModes.set(0, i);
         }
+        
+        // -------------------------------------------------
+        // normalization
+        // -------------------------------------------------
+        
+        // Get the normalization factors.
+        normFactors = poseData.normsColumn();
+        // Normalize the pose matrix.
+        poseData.normalizeColumns(normFactors);
     }
 
     return MStatus::kSuccess;
@@ -2432,6 +2476,7 @@ MUserData* weightDriverOverride::prepareForDraw(const MDagPath &objPath,
     MPlug rbfModePlug(thisNode, weightDriver::rbfMode);
     MPlug sizePlug(thisNode, weightDriver::size);
     MPlug typePlug(thisNode, weightDriver::type);
+    MPlug weightPlug(thisNode, weightDriver::outWeight);
 
     data->activeVal = activePlug.asBool();
     data->angleVal = anglePlug.asDouble();
@@ -2452,6 +2497,7 @@ MUserData* weightDriverOverride::prepareForDraw(const MDagPath &objPath,
     data->rbfModeVal = rbfModePlug.asShort();
     data->sizeVal = sizePlug.asDouble();
     data->typeVal = typePlug.asShort();
+    data->weightVal = weightPlug.asDouble();
 
     MHWRender::DisplayStatus stat = MHWRender::MGeometryUtilities::displayStatus(objPath);
 

@@ -1,3 +1,7 @@
+**4.0.1 (2023-11-02)**
+* Fixed that poses don't produce a full output weight with the RBF mode set to Matrix.
+* Fixed a vector angle weight output error.
+
 **4.0.0 (2023-06-22)**
 * RBF algorithm update. This breaks compatibility with previous versions of the weightDriver node.
 * Minimum supported Maya version is 2020.

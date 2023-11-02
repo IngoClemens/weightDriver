@@ -86,14 +86,16 @@ public:
                                    MIntArray &poseModes,
                                    unsigned twistAxis,
                                    bool invert,
-                                   unsigned driverId);
+                                   unsigned driverId,
+                                   std::vector<double>&normFactors);
     virtual MStatus getPoseData(MDataBlock &data,
                                 std::vector<double> &driver,
                                 unsigned &poseCount,
                                 unsigned &solveCount,
                                 BRMatrix &poseData,
                                 BRMatrix &poseValues,
-                                MIntArray &poseModes);
+                                MIntArray &poseModes,
+                                std::vector<double>&normFactors);
 
     virtual double getRadiusValue();
     
@@ -147,6 +149,7 @@ public:
     static MObject grow;
     static MObject interpolate;
     static MObject invert;
+    static MObject outWeight;
     static MObject readerMatrix;
     static MObject size;
     static MObject translateMax;
