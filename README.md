@@ -5,7 +5,8 @@ Even though the tool is Open Source we appreciate if you would consider support 
 Thank you!
 
 ## Video
-[RBF mode overview on Vimeo](https://vimeo.com/196583536)
+[RBF mode overview on YouTube](https://youtu.be/Z3NTbN-nPWw)
+[Vector Angle Setup on YouTube](https://youtu.be/TDJzXgtiWvM)
 
 ## Installation
 Installation is easy with the included installer.
