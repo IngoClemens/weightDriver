@@ -1,3 +1,6 @@
+**4.0.1 (2025-05-28) - Update**
+* Added support for Maya 2026.
+
 **4.0.1 (2023-11-02)**
 * Fixed that poses don't produce a full output weight with the RBF mode set to Matrix.
 * Fixed a vector angle weight output error.

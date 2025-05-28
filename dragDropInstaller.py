@@ -1165,7 +1165,7 @@ def onMayaDroppedPythonFile(*args, **kwargs):
 # ----------------------------------------------------------------------
 # License
 #
-# Copyright (c) 2021 Ingo Clemens, brave rabbit
+# Copyright (c) 2025 Ingo Clemens, brave rabbit
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
